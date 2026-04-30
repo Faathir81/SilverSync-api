@@ -30,10 +30,10 @@ This project is built in iterative phases to ensure stability and performance:
 
 ### Phase 1: Foundation & Setup ⏳ (In Progress)
 
-- [ ] Initialize Go module and project directory structure (Clean Architecture).
-- [ ] Set up environment variables (`.env`) for database credentials and API keys.
-- [ ] Design and implement database schema (ERD) for `tracks` and `sync_logs`.
-- [ ] Create basic REST API router using `gin-gonic/gin` or standard `net/http`.
+- [x] Initialize Go module and project directory structure (Clean Architecture).
+- [x] Set up environment variables (`.env`) for database credentials and API keys.
+- [x] Design and implement database schema (ERD) for `tracks` and `sync_logs`.
+- [x] Create basic REST API router using `gin-gonic/gin` or standard `net/http`.
 
 ### Phase 2: Core Engine Integration (spotDL) 📝 (Planned)
 
