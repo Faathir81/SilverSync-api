@@ -28,34 +28,34 @@ SilverSync API is the core backend engine designed to bridge Spotify metadata, l
 
 This project is built in iterative phases to ensure stability and performance:
 
-### Phase 1: Foundation & Setup ⏳ (In Progress)
+### Phase 1: Foundation & Setup ⏳
 
 - [x] Initialize Go module and project directory structure (Clean Architecture).
 - [x] Set up environment variables (`.env`) for database credentials and API keys.
 - [x] Design and implement database schema (ERD) for `tracks` and `sync_logs`.
 - [x] Create basic REST API router using `gin-gonic/gin` or standard `net/http`.
 
-### Phase 2: Core Engine Integration (spotDL) 📝 (Planned)
+### Phase 2: Core Engine Integration (spotDL) 📝
 
 - [x] Implement Go wrapper to execute shell commands (`os/exec`).
 - [x] Create function to trigger `spotDL` with specific arguments (download path, format).
 - [x] Handle CLI stdout/stderr to parse download progress and errors.
 - [x] Implement Goroutines for background processing so the API doesn't timeout.
 
-### Phase 3: Cloud Integration (Google Drive) 📝 (Planned)
+### Phase 3: Cloud Integration (Google Drive) 📝
 
 - [ ] Set up Google Cloud Console Project and generate Service Account JSON.
 - [ ] Integrate `google.golang.org/api/drive/v3` into the Go project.
 - [ ] Create an upload function that takes the local downloaded `.mp3` and pushes it to Drive.
 - [ ] Implement `defer os.Remove()` for automatic temporary file cleanup after upload.
 
-### Phase 4: API Endpoints Construction 📝 (Planned)
+### Phase 4: API Endpoints Construction 📝
 
 - [ ] `POST /api/v1/sync`: Accept Spotify URL, initiate background download & upload worker.
 - [ ] `GET /api/v1/tracks`: Retrieve all synced tracks and their Google Drive File IDs from the database.
 - [ ] `GET /api/v1/status`: Check the status of ongoing background download tasks.
 
-### Phase 5: Optimization & Refactoring 📝 (Planned)
+### Phase 5: Optimization & Refactoring 📝
 
 - [ ] Implement a **Worker Pool** system to limit concurrent `spotDL` executions and prevent CPU/RAM overload.
 - [ ] Add robust error handling and retry mechanisms for Google Drive API rate limits.
