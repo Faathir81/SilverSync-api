@@ -37,10 +37,10 @@ This project is built in iterative phases to ensure stability and performance:
 
 ### Phase 2: Core Engine Integration (spotDL) 📝 (Planned)
 
-- [ ] Implement Go wrapper to execute shell commands (`os/exec`).
-- [ ] Create function to trigger `spotDL` with specific arguments (download path, format).
-- [ ] Handle CLI stdout/stderr to parse download progress and errors.
-- [ ] Implement Goroutines for background processing so the API doesn't timeout.
+- [x] Implement Go wrapper to execute shell commands (`os/exec`).
+- [x] Create function to trigger `spotDL` with specific arguments (download path, format).
+- [x] Handle CLI stdout/stderr to parse download progress and errors.
+- [x] Implement Goroutines for background processing so the API doesn't timeout.
 
 ### Phase 3: Cloud Integration (Google Drive) 📝 (Planned)
 
