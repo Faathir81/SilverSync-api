@@ -12,7 +12,8 @@ func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
 	// Initialize Services & Handlers
-	downloaderService := service.NewDownloaderService()
+	driveService := service.NewDriveService()
+	downloaderService := service.NewDownloaderService(driveService)
 	syncHandler := handler.NewSyncHandler(downloaderService)
 
 	// Health check / Ping test
