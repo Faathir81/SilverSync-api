@@ -1,0 +1,32 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+main
+
+# Environment variables
+.env
+
+# Go specific
+vendor/
+*.test
+*.out
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+DS_Store
+Thumbs.db
+
+# Project specific (Temporary downloads)
+*.mp3
+downloads/
+temp/
+service-account.json
