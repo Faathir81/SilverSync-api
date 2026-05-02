@@ -51,17 +51,18 @@ This project is built in iterative phases to ensure stability and performance:
 - [x] Create an upload function that takes the local downloaded `.mp3` and pushes it to Drive.
 - [x] Implement `defer os.Remove()` for automatic temporary file cleanup after upload.
 
-### Phase 4: API Endpoints Construction 📝
+- [x] `POST /api/v1/sync`: Accept Spotify URL (Track/Playlist), initiate background bulk sync.
+- [x] `GET /api/v1/tracks`: Retrieve synced tracks with Search, Pagination, and Sorting.
+- [x] `GET /api/v1/sync/status/:id`: Check the real-time status of ongoing background tasks.
+- [x] `POST /api/v1/sync/watch`: Add Spotify playlists to "Smart Watcher" for auto-sync.
+- [x] `GET /api/v1/sync/quota`: Monitor Google Drive storage usage and remaining quota.
 
-- [x] `POST /api/v1/sync`: Accept Spotify URL, initiate background download & upload worker.
-- [x] `GET /api/v1/tracks`: Retrieve all synced tracks and their Google Drive File IDs from the database.
-- [x] `GET /api/v1/status`: Check the status of ongoing background download tasks.
+### Phase 5: Optimization & Refactoring ✅
 
-### Phase 5: Optimization & Refactoring 📝
-
-- [ ] Implement a **Worker Pool** system to limit concurrent `yt-dlp` executions and prevent CPU/RAM/Rate-Limit overload.
-- [ ] Add robust error handling and retry mechanisms for Google Drive API & yt-dlp failures.
-- [ ] Implement logging (e.g., `logrus` or `zap`) to monitor background task health.
+- [x] Implement a **Worker Pool** system to limit concurrent `yt-dlp` executions (Max 3 workers for stability).
+- [x] Add robust error handling and **Auto-Retry** mechanism for downloader and cloud failures.
+- [x] Implement structured logging using **Logrus** for production-grade monitoring.
+- [x] Refactor core handlers to support Clean Architecture and DRY principles.
 
 ---
 
@@ -122,5 +123,5 @@ cd silversync-api
 go mod tidy
 
 # Run the server
-go run main.go
+go run cmd/api/main.go
 ```
