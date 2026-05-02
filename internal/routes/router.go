@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"log"
 	"net/http"
 	"silversync-api/internal/handler"
 	"silversync-api/internal/service"
@@ -12,8 +13,12 @@ func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
 	// Initialize Services & Handlers
+	spotifyService, err := service.NewSpotifyService()
+	if err != nil {
+		log.Fatalf("Failed to initialize Spotify Service: %v", err)
+	}
 	downloaderService := service.NewDownloaderService()
-	syncHandler := handler.NewSyncHandler(downloaderService)
+	syncHandler := handler.NewSyncHandler(spotifyService, downloaderService)
 
 	// Health check / Ping test
 	r.GET("/ping", func(c *gin.Context) {
