@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"silversync-api/internal/config"
 
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
@@ -61,7 +62,7 @@ func (s *driveService) UploadFile(ctx context.Context, filePath string, original
 		return "", fmt.Errorf("failed to upload file: %v", err)
 	}
 
-	log.Printf("[Drive] Successfully uploaded %s (File ID: %s)\n", originalFileName, res.Id)
+	config.Logger.Infof("[Drive] Successfully uploaded %s (File ID: %s)", originalFileName, res.Id)
 	return res.Id, nil
 }
 
@@ -74,6 +75,6 @@ func (s *driveService) GetStorageQuota(ctx context.Context) (*drive.AboutStorage
 }
 
 func (s *driveService) DeleteFile(ctx context.Context, fileID string) error {
-	log.Printf("[Drive] Deleting file from Drive: %s\n", fileID)
+	config.Logger.Infof("[Drive] Deleting file from Drive: %s", fileID)
 	return s.client.Files.Delete(fileID).Context(ctx).Do()
 }

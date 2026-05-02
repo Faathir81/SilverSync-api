@@ -6,6 +6,7 @@ require (
 	github.com/bogem/id3v2 v1.2.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/joho/godotenv v1.5.1
+	github.com/sirupsen/logrus v1.9.4
 	github.com/zmb3/spotify/v2 v2.4.3
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.277.0

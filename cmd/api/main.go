@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"silversync-api/internal/config"
 	"silversync-api/internal/routes"
@@ -10,10 +9,13 @@ import (
 )
 
 func main() {
+	// Initialize Logger
+	config.InitLogger()
+
 	// Load environment variables
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Warning: .env file not found, using system environment variables")
+		config.Logger.Warn("Warning: .env file not found, using system environment variables")
 	}
 
 	// Connect to Database
@@ -29,8 +31,8 @@ func main() {
 	}
 
 	// Start server
-	log.Printf("Server starting on port %s...", port)
+	config.Logger.Infof("Server starting on port %s...", port)
 	if err := r.Run(":" + port); err != nil {
-		log.Fatal("Failed to start server:", err)
+		config.Logger.Fatal("Failed to start server:", err)
 	}
 }

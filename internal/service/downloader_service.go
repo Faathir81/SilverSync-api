@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"silversync-api/internal/config"
 	"strings"
 
 	"github.com/bogem/id3v2"
@@ -70,19 +71,19 @@ func (s *downloaderService) DownloadAudio(ctx context.Context, track *TrackMetad
 
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
 	
-	log.Printf("[Downloader] Executing yt-dlp for track: %s\n", track.Title)
+	config.Logger.Infof("[Downloader] Executing yt-dlp for track: %s", track.Title)
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("yt-dlp error: %v, output: %s", err, string(out))
 	}
 
-	log.Printf("[Downloader] Successfully downloaded: %s\n", outputPath)
+	config.Logger.Infof("[Downloader] Successfully downloaded: %s", outputPath)
 
 	// Inject ID3 Tags
-	log.Printf("[Downloader] Injecting ID3 tags for: %s\n", track.Title)
+	config.Logger.Infof("[Downloader] Injecting ID3 tags for: %s", track.Title)
 	if err := s.injectID3Tags(outputPath, track); err != nil {
-		log.Printf("[Downloader] Warning: Failed to inject ID3 tags: %v\n", err)
+		config.Logger.Warnf("[Downloader] Failed to inject ID3 tags: %v", err)
 	}
 
 	return outputPath, nil
@@ -116,7 +117,7 @@ func (s *downloaderService) injectID3Tags(filePath string, track *TrackMetadata)
 				}
 			}
 		} else {
-			log.Printf("[Downloader] Warning: failed to download album art: %v", err)
+			config.Logger.Warnf("[Downloader] Failed to download album art: %v", err)
 		}
 	}
 

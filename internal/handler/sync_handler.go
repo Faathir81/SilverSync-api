@@ -3,10 +3,10 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"silversync-api/internal/config"
 	"silversync-api/internal/models"
 	"silversync-api/internal/repository"
 	"silversync-api/internal/service"
@@ -22,9 +22,10 @@ type SyncHandler struct {
 	trackRepo         repository.TrackRepository
 	syncLogRepo       repository.SyncLogRepository
 	watchRepo         repository.WatchedPlaylistRepository
+	workerPool        service.WorkerPool
 }
 
-func NewSyncHandler(ss *service.SpotifyService, ds service.DownloaderService, dr service.DriveService, tr repository.TrackRepository, slr repository.SyncLogRepository, wr repository.WatchedPlaylistRepository) *SyncHandler {
+func NewSyncHandler(ss *service.SpotifyService, ds service.DownloaderService, dr service.DriveService, tr repository.TrackRepository, slr repository.SyncLogRepository, wr repository.WatchedPlaylistRepository, wp service.WorkerPool) *SyncHandler {
 	return &SyncHandler{
 		spotifyService:    ss,
 		downloaderService: ds,
@@ -32,6 +33,7 @@ func NewSyncHandler(ss *service.SpotifyService, ds service.DownloaderService, dr
 		trackRepo:         tr,
 		syncLogRepo:       slr,
 		watchRepo:         wr,
+		workerPool:        wp,
 	}
 }
 
@@ -61,48 +63,46 @@ func (h *SyncHandler) Sync(c *gin.Context) {
 		return
 	}
 
-	// Trigger download in a Goroutine (Asynchronous)
-	go func(url string, logID uint) {
-		importCtx := context.Background()
-
-		id, isPlaylist, err := service.ExtractSpotifyID(url)
+	// Submit to WorkerPool instead of naked goroutine
+	h.workerPool.Submit(func(ctx context.Context) {
+		id, isPlaylist, err := service.ExtractSpotifyID(req.URL)
 		if err != nil {
-			h.updateLog(logID, "FAILED", fmt.Sprintf("Invalid Spotify URL: %v", err))
+			h.updateLog(syncLog.ID, "FAILED", fmt.Sprintf("Invalid Spotify URL: %v", err))
 			return
 		}
 
 		if !isPlaylist {
-			h.syncSingleTrack(importCtx, id, logID)
+			h.syncSingleTrack(ctx, id, syncLog.ID)
 		} else {
-			h.updateLog(logID, "DOWNLOADING", "Fetching playlist items...")
-			tracks, err := h.spotifyService.FetchPlaylistTracks(importCtx, id)
+			h.updateLog(syncLog.ID, "DOWNLOADING", "Fetching playlist items...")
+			tracks, err := h.spotifyService.FetchPlaylistTracks(ctx, id)
 			if err != nil {
-				h.updateLog(logID, "FAILED", fmt.Sprintf("Failed to fetch playlist tracks: %v", err))
+				h.updateLog(syncLog.ID, "FAILED", fmt.Sprintf("Failed to fetch playlist tracks: %v", err))
 				return
 			}
 
 			total := len(tracks)
-			h.updateLog(logID, "DOWNLOADING", fmt.Sprintf("Found %d tracks. Starting bulk sync...", total))
+			h.updateLog(syncLog.ID, "DOWNLOADING", fmt.Sprintf("Found %d tracks. Starting bulk sync...", total))
 
 			for i, t := range tracks {
-				h.updateLog(logID, "DOWNLOADING", fmt.Sprintf("[%d/%d] Syncing: %s - %s", i+1, total, t.Artist, t.Title))
-				h.syncSingleTrack(importCtx, t.SpotifyID, logID)
+				h.updateLog(syncLog.ID, "DOWNLOADING", fmt.Sprintf("[%d/%d] Syncing: %s - %s", i+1, total, t.Artist, t.Title))
+				h.syncSingleTrack(ctx, t.SpotifyID, syncLog.ID)
 			}
 
-			h.updateLog(logID, "SUCCESS", fmt.Sprintf("Bulk sync complete for %d tracks", total))
+			h.updateLog(syncLog.ID, "SUCCESS", fmt.Sprintf("Bulk sync complete for %d tracks", total))
 		}
-	}(req.URL, syncLog.ID)
+	})
 
 	// Return immediate response to prevent timeout
 	c.JSON(http.StatusAccepted, gin.H{
-		"message":     "Syncing started in background",
+		"message":     "Sync task queued",
 		"sync_log_id": syncLog.ID,
 		"url":         req.URL,
 		"status":      "PENDING",
 	})
 }
 
-// syncSingleTrack is a helper to process one track
+// syncSingleTrack is a helper to process one track with retry logic
 func (h *SyncHandler) syncSingleTrack(ctx context.Context, spotifyID string, logID uint) {
 	// Check Duplicate
 	existingTrack, err := h.trackRepo.FindBySpotifyID(spotifyID)
@@ -117,10 +117,24 @@ func (h *SyncHandler) syncSingleTrack(ctx context.Context, spotifyID string, log
 		return
 	}
 
-	h.updateLog(logID, "DOWNLOADING", fmt.Sprintf("Downloading: %s - %s", trackMeta.Artist, trackMeta.Title))
-	outputPath, err := h.downloaderService.DownloadAudio(ctx, trackMeta)
+	const maxRetries = 2
+	var outputPath string
+	for i := 0; i <= maxRetries; i++ {
+		attemptMsg := ""
+		if i > 0 {
+			attemptMsg = fmt.Sprintf(" (Retry %d/%d)", i, maxRetries)
+		}
+		h.updateLog(logID, "DOWNLOADING", fmt.Sprintf("Downloading: %s - %s%s", trackMeta.Artist, trackMeta.Title, attemptMsg))
+
+		outputPath, err = h.downloaderService.DownloadAudio(ctx, trackMeta)
+		if err == nil {
+			break
+		}
+		config.Logger.Errorf("[Sync] Download failed for %s: %v. Retrying...", trackMeta.Title, err)
+	}
+
 	if err != nil {
-		h.updateLog(logID, "FAILED", fmt.Sprintf("Failed to download %s: %v", trackMeta.Title, err))
+		h.updateLog(logID, "FAILED", fmt.Sprintf("Failed to download %s after retries: %v", trackMeta.Title, err))
 		return
 	}
 
@@ -153,7 +167,7 @@ func (h *SyncHandler) syncSingleTrack(ctx context.Context, spotifyID string, log
 
 // Helper method
 func (h *SyncHandler) updateLog(id uint, status string, message string) {
-	log.Printf("[SyncLog %d] %s: %s", id, status, message)
+	config.Logger.Infof("[SyncLog %d] %s: %s", id, status, message)
 	syncLog, err := h.syncLogRepo.FindByID(id)
 	if err == nil {
 		syncLog.Status = status

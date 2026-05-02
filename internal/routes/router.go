@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"log"
+	"context"
 	"net/http"
 	"silversync-api/internal/config"
 	"silversync-api/internal/handler"
@@ -23,16 +23,20 @@ func SetupRouter() *gin.Engine {
 	// Initialize Services
 	spotifyService, err := service.NewSpotifyService()
 	if err != nil {
-		log.Fatalf("Failed to initialize Spotify Service: %v", err)
+		config.Logger.Fatalf("Failed to initialize Spotify Service: %v", err)
 	}
 	driveService, err := service.NewDriveService()
 	if err != nil {
-		log.Fatalf("Failed to initialize Google Drive Service: %v", err)
+		config.Logger.Fatalf("Failed to initialize Google Drive Service: %v", err)
 	}
 	downloaderService := service.NewDownloaderService()
 
+	// Initialize Worker Pool (Max 3 concurrent downloads for PC stability)
+	workerPool := service.NewWorkerPool(3, config.Logger)
+	workerPool.Start(context.Background())
+
 	// Initialize Handlers
-	syncHandler := handler.NewSyncHandler(spotifyService, downloaderService, driveService, trackRepo, syncLogRepo, watchRepo)
+	syncHandler := handler.NewSyncHandler(spotifyService, downloaderService, driveService, trackRepo, syncLogRepo, watchRepo, workerPool)
 	trackHandler := handler.NewTrackHandler(trackRepo, driveService)
 	playlistHandler := handler.NewPlaylistHandler(playlistRepo)
 
