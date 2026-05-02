@@ -46,10 +46,10 @@ This project is built in iterative phases to ensure stability and performance:
 
 ### Phase 3: Cloud Integration (Google Drive) 📝
 
-- [ ] Set up Google Cloud Console Project and generate Service Account JSON.
-- [ ] Integrate `google.golang.org/api/drive/v3` into the Go project.
-- [ ] Create an upload function that takes the local downloaded `.mp3` and pushes it to Drive.
-- [ ] Implement `defer os.Remove()` for automatic temporary file cleanup after upload.
+- [x] Set up Google Cloud Console Project and generate Service Account JSON.
+- [x] Integrate `google.golang.org/api/drive/v3` into the Go project.
+- [x] Create an upload function that takes the local downloaded `.mp3` and pushes it to Drive.
+- [x] Implement `defer os.Remove()` for automatic temporary file cleanup after upload.
 
 ### Phase 4: API Endpoints Construction 📝
 

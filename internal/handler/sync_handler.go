@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"silversync-api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -12,12 +14,14 @@ import (
 type SyncHandler struct {
 	spotifyService    *service.SpotifyService
 	downloaderService service.DownloaderService
+	driveService      service.DriveService
 }
 
-func NewSyncHandler(ss *service.SpotifyService, ds service.DownloaderService) *SyncHandler {
+func NewSyncHandler(ss *service.SpotifyService, ds service.DownloaderService, dr service.DriveService) *SyncHandler {
 	return &SyncHandler{
 		spotifyService:    ss,
 		downloaderService: ds,
+		driveService:      dr,
 	}
 }
 
@@ -52,10 +56,23 @@ func (h *SyncHandler) Sync(c *gin.Context) {
 				log.Printf("Failed to fetch metadata: %v\n", err)
 				return
 			}
-			_, err = h.downloaderService.DownloadAudio(importCtx, trackMeta)
+			outputPath, err := h.downloaderService.DownloadAudio(importCtx, trackMeta)
 			if err != nil {
 				log.Printf("Failed to download audio: %v\n", err)
+				return
 			}
+			
+			// Clean up local file after we are done with it
+			defer os.Remove(outputPath)
+
+			// Upload to Drive
+			originalFileName := filepath.Base(outputPath)
+			fileID, err := h.driveService.UploadFile(importCtx, outputPath, originalFileName)
+			if err != nil {
+				log.Printf("Failed to upload to Drive: %v\n", err)
+				return
+			}
+			log.Printf("Sync complete for %s. Drive ID: %s\n", trackMeta.Title, fileID)
 		} else {
 			log.Println("Playlist download not fully implemented in this phase yet")
 		}

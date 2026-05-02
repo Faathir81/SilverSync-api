@@ -17,8 +17,12 @@ func SetupRouter() *gin.Engine {
 	if err != nil {
 		log.Fatalf("Failed to initialize Spotify Service: %v", err)
 	}
+	driveService, err := service.NewDriveService()
+	if err != nil {
+		log.Fatalf("Failed to initialize Google Drive Service: %v", err)
+	}
 	downloaderService := service.NewDownloaderService()
-	syncHandler := handler.NewSyncHandler(spotifyService, downloaderService)
+	syncHandler := handler.NewSyncHandler(spotifyService, downloaderService, driveService)
 
 	// Health check / Ping test
 	r.GET("/ping", func(c *gin.Context) {
