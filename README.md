@@ -4,21 +4,23 @@
 ![Python Version](https://img.shields.io/badge/Python-3.10.6-3776AB?style=flat&logo=python)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-SilverSync API is the core backend engine designed to bridge Spotify metadata, local CLI downloading via `spotDL`, and cloud storage distribution via Google Drive API. It acts as the processing server to download high-quality audio and serve it to a mobile client for offline playback.
+SilverSync API is the core backend engine designed to bridge Spotify metadata, local CLI downloading via `yt-dlp`, and cloud storage distribution via Google Drive API. It acts as the processing server to download high-quality audio and serve it to a mobile client for offline playback.
 
 ## 🏗️ System Architecture
 
 1. **Request:** Client sends a Spotify Playlist/Track URL to this Go API.
-2. **Process:** API executes `spotDL` (Python CLI) to download the track and attach metadata & album art.
-3. **Upload:** API uploads the processed `.mp3` file to a dedicated Google Drive folder via Service Account.
-4. **Record:** API stores the Google Drive File ID and track metadata into the database.
-5. **Clean:** API deletes the temporary local file to save server storage.
-6. **Serve:** API serves a JSON list of available tracks and their direct download links for the Flutter app.
+2. **Metadata:** API fetches track metadata (Title, Artist, Album Art) securely via the official Spotify Web API.
+3. **Process:** API executes `yt-dlp` to download the track audio from YouTube and injects ID3 tags (metadata & cover art) directly in Go.
+4. **Upload:** API uploads the processed `.mp3` file to a dedicated Google Drive folder via Service Account.
+5. **Record:** API stores the Google Drive File ID and track metadata into the database.
+6. **Clean:** API deletes the temporary local file to save server storage.
+7. **Serve:** API serves a JSON list of available tracks and their direct download links for the Flutter app.
 
 ## 🛠️ Tech Stack
 
 - **Language:** Golang (Go)
-- **Downloader Engine:** Python + spotDL + FFmpeg
+- **Downloader Engine:** yt-dlp + FFmpeg
+- **Metadata API:** Spotify Web API (zmb3/spotify/v2)
 - **Cloud Storage:** Google Drive API v3 (Service Account)
 - **Database:** PostgreSQL
 
@@ -35,30 +37,30 @@ This project is built in iterative phases to ensure stability and performance:
 - [x] Design and implement database schema (ERD) for `tracks` and `sync_logs`.
 - [x] Create basic REST API router using `gin-gonic/gin` or standard `net/http`.
 
-### Phase 2: Core Engine Integration (spotDL) 📝
+### Phase 2: Core Engine Integration (Spotify API & yt-dlp) 📝
 
-- [x] Implement Go wrapper to execute shell commands (`os/exec`).
-- [x] Create function to trigger `spotDL` with specific arguments (download path, format).
-- [x] Handle CLI stdout/stderr to parse download progress and errors.
+- [x] Implement Spotify API client (`zmb3/spotify/v2`) to securely fetch playlist/track metadata.
+- [x] Implement Go wrapper to execute `yt-dlp` commands with anti-rate-limit arguments (cookies, sleep intervals).
+- [x] Implement ID3 tag injection (`bogem/id3v2`) to embed downloaded metadata into the MP3 file.
 - [x] Implement Goroutines for background processing so the API doesn't timeout.
 
 ### Phase 3: Cloud Integration (Google Drive) 📝
 
-- [ ] Set up Google Cloud Console Project and generate Service Account JSON.
-- [ ] Integrate `google.golang.org/api/drive/v3` into the Go project.
-- [ ] Create an upload function that takes the local downloaded `.mp3` and pushes it to Drive.
-- [ ] Implement `defer os.Remove()` for automatic temporary file cleanup after upload.
+- [x] Set up Google Cloud Console Project and generate Service Account JSON.
+- [x] Integrate `google.golang.org/api/drive/v3` into the Go project.
+- [x] Create an upload function that takes the local downloaded `.mp3` and pushes it to Drive.
+- [x] Implement `defer os.Remove()` for automatic temporary file cleanup after upload.
 
 ### Phase 4: API Endpoints Construction 📝
 
-- [ ] `POST /api/v1/sync`: Accept Spotify URL, initiate background download & upload worker.
-- [ ] `GET /api/v1/tracks`: Retrieve all synced tracks and their Google Drive File IDs from the database.
-- [ ] `GET /api/v1/status`: Check the status of ongoing background download tasks.
+- [x] `POST /api/v1/sync`: Accept Spotify URL, initiate background download & upload worker.
+- [x] `GET /api/v1/tracks`: Retrieve all synced tracks and their Google Drive File IDs from the database.
+- [x] `GET /api/v1/status`: Check the status of ongoing background download tasks.
 
 ### Phase 5: Optimization & Refactoring 📝
 
-- [ ] Implement a **Worker Pool** system to limit concurrent `spotDL` executions and prevent CPU/RAM overload.
-- [ ] Add robust error handling and retry mechanisms for Google Drive API rate limits.
+- [ ] Implement a **Worker Pool** system to limit concurrent `yt-dlp` executions and prevent CPU/RAM/Rate-Limit overload.
+- [ ] Add robust error handling and retry mechanisms for Google Drive API & yt-dlp failures.
 - [ ] Implement logging (e.g., `logrus` or `zap`) to monitor background task health.
 
 ---
@@ -72,7 +74,7 @@ Untuk menjaga keteraturan proses development dan menghindari konflik antar phase
 | **Production**  | `main`                       | Code yang sudah stabil dan siap digunakan.                      |
 | **Integration** | `develop`                    | Branch utama untuk penggabungan tiap phase.                     |
 | **Phase 1**     | `phase/01-foundation`        | Inisialisasi project, struktur Clean Architecture, & DB Schema. |
-| **Phase 2**     | `phase/02-core-engine`       | Integrasi spotDL, command execution, & background process.      |
+| **Phase 2**     | `phase/02-core-engine`       | Integrasi Spotify API, yt-dlp execution, & ID3 Tagging.         |
 | **Phase 3**     | `phase/03-cloud-integration` | Integrasi Google Drive API & pembersihan file lokal.            |
 | **Phase 4**     | `phase/04-api-construction`  | Pembangunan REST endpoints (Sync, Tracks, Status).              |
 | **Phase 5**     | `phase/05-optimization`      | Worker Pool, robust logging, & error handling.                  |
@@ -99,11 +101,13 @@ Untuk menjaga keteraturan proses development dan menghindari konflik antar phase
 To run this project locally, you need to install:
 
 1. **Golang** (v1.25.0)
-2. **Python** (v3.10.6)
+2. **Python** (v3.10.6) - _Required by yt-dlp_
 3. **FFmpeg** (v4.4 or newer)
-4. **spotDL** (v4.2 or newer)
+4. **yt-dlp** (latest version)
 5. **PostgreSQL** (v14.5)
 6. **Google Service Account Key** (JSON file placed in the root directory)
+7. **Spotify Developer App** (Client ID & Client Secret)
+8. **YouTube Cookies** (`cookies.txt` for yt-dlp rate-limit bypass)
 
 ## 🚀 How to Run (Local Development)
 

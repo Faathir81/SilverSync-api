@@ -5,64 +5,76 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"silversync-api/internal/config"
 
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
 
 type DriveService interface {
-	UploadFile(filePath string, filename string) (string, error)
+	UploadFile(ctx context.Context, filePath string, originalFileName string) (string, error)
+	GetStorageQuota(ctx context.Context) (*drive.AboutStorageQuota, error)
+	DeleteFile(ctx context.Context, fileID string) error
 }
 
 type driveService struct {
-	service  *drive.Service
+	client   *drive.Service
 	folderID string
 }
 
-func NewDriveService() DriveService {
+func NewDriveService() (DriveService, error) {
 	ctx := context.Background()
-	credentialsFile := os.Getenv("GDRIVE_CREDENTIALS_FILE")
+
+	credFile := os.Getenv("GDRIVE_CREDENTIALS_FILE")
 	folderID := os.Getenv("GDRIVE_FOLDER_ID")
 
-	if credentialsFile == "" || folderID == "" {
-		log.Fatal("GDRIVE_CREDENTIALS_FILE or GDRIVE_FOLDER_ID is not set in environment variables")
+	if credFile == "" || folderID == "" {
+		return nil, fmt.Errorf("GDRIVE_CREDENTIALS_FILE or GDRIVE_FOLDER_ID is missing")
 	}
 
-	srv, err := drive.NewService(ctx, 
-		option.WithCredentialsFile(credentialsFile),
-		option.WithScopes(drive.DriveFileScope),
-	)
+	client, err := drive.NewService(ctx, option.WithCredentialsFile(credFile))
 	if err != nil {
-		log.Fatalf("Unable to retrieve Drive client: %v", err)
+		return nil, fmt.Errorf("failed to create drive service: %v", err)
 	}
 
 	return &driveService{
-		service:  srv,
+		client:   client,
 		folderID: folderID,
-	}
+	}, nil
 }
 
-func (s *driveService) UploadFile(filePath string, filename string) (string, error) {
-	// Open the local file
-	f, err := os.Open(filePath)
+func (s *driveService) UploadFile(ctx context.Context, filePath string, originalFileName string) (string, error) {
+	file, err := os.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("could not open file: %v", err)
+		return "", fmt.Errorf("failed to open file for upload: %v", err)
 	}
-	defer f.Close()
+	defer file.Close()
 
-	// Prepare Drive file metadata
 	driveFile := &drive.File{
-		Name:    filename,
+		Name:    originalFileName,
 		Parents: []string{s.folderID},
 	}
 
-	// Execute Upload
-	log.Printf("[Drive] Uploading %s to Google Drive...\n", filename)
-	res, err := s.service.Files.Create(driveFile).Media(f).Do()
+	log.Printf("[Drive] Uploading %s to Google Drive...\n", originalFileName)
+
+	res, err := s.client.Files.Create(driveFile).Media(file).Context(ctx).Do()
 	if err != nil {
-		return "", fmt.Errorf("could not create file in drive: %v", err)
+		return "", fmt.Errorf("failed to upload file: %v", err)
 	}
 
-	log.Printf("[Drive] Upload successful. File ID: %s\n", res.Id)
+	config.Logger.Infof("[Drive] Successfully uploaded %s (File ID: %s)", originalFileName, res.Id)
 	return res.Id, nil
+}
+
+func (s *driveService) GetStorageQuota(ctx context.Context) (*drive.AboutStorageQuota, error) {
+	about, err := s.client.About.Get().Fields("storageQuota").Do()
+	if err != nil {
+		return nil, err
+	}
+	return about.StorageQuota, nil
+}
+
+func (s *driveService) DeleteFile(ctx context.Context, fileID string) error {
+	config.Logger.Infof("[Drive] Deleting file from Drive: %s", fileID)
+	return s.client.Files.Delete(fileID).Context(ctx).Do()
 }

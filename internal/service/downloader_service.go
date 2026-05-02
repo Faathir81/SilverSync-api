@@ -1,82 +1,128 @@
 package service
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"silversync-api/internal/config"
+	"strings"
+
+	"github.com/bogem/id3v2"
 )
 
 type DownloaderService interface {
-	Download(spotifyURL string)
+	DownloadAudio(ctx context.Context, track *TrackMetadata) (string, error)
 }
 
-type downloaderService struct {
-	driveService DriveService
+type downloaderService struct{}
+
+func NewDownloaderService() DownloaderService {
+	return &downloaderService{}
 }
 
-func NewDownloaderService(ds DriveService) DownloaderService {
-	return &downloaderService{
-		driveService: ds,
+func sanitizeFileName(name string) string {
+	// Simple sanitizer to remove invalid characters for windows/linux
+	invalidChars := []string{"<", ">", ":", "\"", "/", "\\", "|", "?", "*"}
+	for _, char := range invalidChars {
+		name = strings.ReplaceAll(name, char, "_")
 	}
+	return name
 }
 
-func (s *downloaderService) Download(spotifyURL string) {
-	// 1. Ensure downloads directory exists
+func (s *downloaderService) DownloadAudio(ctx context.Context, track *TrackMetadata) (string, error) {
 	downloadDir := "downloads"
 	if _, err := os.Stat(downloadDir); os.IsNotExist(err) {
-		_ = os.Mkdir(downloadDir, 0755)
+		err := os.Mkdir(downloadDir, 0755)
+		if err != nil {
+			return "", fmt.Errorf("failed to create downloads directory: %v", err)
+		}
 	}
 
-	// 2. Prepare the spotDL command arguments
-	args := []string{spotifyURL, "--output", downloadDir, "--format", "mp3"}
+	safeArtist := sanitizeFileName(track.Artist)
+	safeTitle := sanitizeFileName(track.Title)
+	fileName := fmt.Sprintf("%s - %s.mp3", safeArtist, safeTitle)
+	outputPath := filepath.Join(downloadDir, fileName)
 
-	// Add Spotify credentials if available in .env
-	clientID := os.Getenv("SPOTIFY_CLIENT_ID")
-	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
+	// Using yt-dlp to search and download the best audio format, converting to mp3
+	searchQuery := fmt.Sprintf("ytsearch1:%s %s audio", track.Title, track.Artist)
 
-	if clientID != "" && clientSecret != "" {
-		args = append(args, "--client-id", clientID, "--client-secret", clientSecret)
-		log.Println("[Downloader] Using Spotify API credentials for this request.")
+	args := []string{
+		searchQuery,
+		"-x", // extract audio
+		"--audio-format", "mp3",
+		"--audio-quality", "0",
+		"-o", outputPath,
+		"--sleep-interval", "3",
+		"--max-sleep-interval", "8",
+		"--no-playlist",
+		"--extractor-arg", "youtube:skip=hls,dash",
 	}
 
-	cmd := exec.Command("spotdl", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Check if cookies.txt exists in root directory to avoid Rate Limit 429
+	if _, err := os.Stat("cookies.txt"); err == nil {
+		args = append(args, "--cookies", "cookies.txt")
+		log.Println("[Downloader] Using cookies.txt for authentication")
+	}
 
-	log.Printf("[Downloader] Starting download for: %s\n", spotifyURL)
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	
+	config.Logger.Infof("[Downloader] Executing yt-dlp for track: %s", track.Title)
 
-	// 3. Execute the command
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("[Downloader] Error executing spotDL: %v\n", err)
-		return
+		return "", fmt.Errorf("yt-dlp error: %v, output: %s", err, string(out))
 	}
 
-	// 4. Find the downloaded file (spotDL names it based on metadata)
-	files, err := filepath.Glob(filepath.Join(downloadDir, "*.mp3"))
-	if err != nil || len(files) == 0 {
-		log.Printf("[Downloader] Could not find downloaded file in %s\n", downloadDir)
-		return
+	config.Logger.Infof("[Downloader] Successfully downloaded: %s", outputPath)
+
+	// Inject ID3 Tags
+	config.Logger.Infof("[Downloader] Injecting ID3 tags for: %s", track.Title)
+	if err := s.injectID3Tags(outputPath, track); err != nil {
+		config.Logger.Warnf("[Downloader] Failed to inject ID3 tags: %v", err)
 	}
 
-	// For simplicity, we take the first .mp3 found in the folder
-	// In production, we might want a more precise matching logic
-	localFilePath := files[0]
-	fileName := filepath.Base(localFilePath)
+	return outputPath, nil
+}
 
-	// 5. Cleanup: Delete local file after this function finishes
-	defer func() {
-		log.Printf("[Cleanup] Removing temporary file: %s\n", localFilePath)
-		_ = os.Remove(localFilePath)
-	}()
-
-	// 6. Upload to Google Drive
-	driveID, err := s.driveService.UploadFile(localFilePath, fileName)
+func (s *downloaderService) injectID3Tags(filePath string, track *TrackMetadata) error {
+	tag, err := id3v2.Open(filePath, id3v2.Options{Parse: true})
 	if err != nil {
-		log.Printf("[Downloader] Failed to upload to Drive: %v\n", err)
-		return
+		return fmt.Errorf("error opening mp3 file for tagging: %v", err)
+	}
+	defer tag.Close()
+
+	tag.SetTitle(track.Title)
+	tag.SetArtist(track.Artist)
+
+	if track.AlbumArtURL != "" {
+		resp, err := http.Get(track.AlbumArtURL)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				imgData, err := io.ReadAll(resp.Body)
+				if err == nil {
+					pic := id3v2.PictureFrame{
+						Encoding:    id3v2.EncodingUTF8,
+						MimeType:    "image/jpeg",
+						PictureType: id3v2.PTFrontCover,
+						Description: "Front cover",
+						Picture:     imgData,
+					}
+					tag.AddAttachedPicture(pic)
+				}
+			}
+		} else {
+			config.Logger.Warnf("[Downloader] Failed to download album art: %v", err)
+		}
 	}
 
-	log.Printf("[Downloader] Process completed. Drive ID: %s\n", driveID)
+	if err = tag.Save(); err != nil {
+		return fmt.Errorf("error saving id3 tags: %v", err)
+	}
+	return nil
 }

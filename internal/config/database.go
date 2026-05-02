@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"silversync-api/internal/models"
 
@@ -26,15 +25,15 @@ func ConnectDatabase() {
 
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		Logger.Fatal("Failed to connect to database: ", err)
 	}
 
 	// Auto Migration
-	err = database.AutoMigrate(&models.Track{}, &models.SyncLog{})
+	err = database.AutoMigrate(&models.Track{}, &models.SyncLog{}, &models.Playlist{}, &models.WatchedPlaylist{})
 	if err != nil {
-		log.Fatal("Database migration failed:", err)
+		Logger.Fatal("Database migration failed: ", err)
 	}
 
 	DB = database
-	fmt.Println("Database connection successfully established and migrated.")
+	Logger.Info("Database connection established and migrated successfully")
 }
