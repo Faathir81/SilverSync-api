@@ -53,9 +53,9 @@ This project is built in iterative phases to ensure stability and performance:
 
 ### Phase 4: API Endpoints Construction 📝
 
-- [ ] `POST /api/v1/sync`: Accept Spotify URL, initiate background download & upload worker.
-- [ ] `GET /api/v1/tracks`: Retrieve all synced tracks and their Google Drive File IDs from the database.
-- [ ] `GET /api/v1/status`: Check the status of ongoing background download tasks.
+- [x] `POST /api/v1/sync`: Accept Spotify URL, initiate background download & upload worker.
+- [x] `GET /api/v1/tracks`: Retrieve all synced tracks and their Google Drive File IDs from the database.
+- [x] `GET /api/v1/status`: Check the status of ongoing background download tasks.
 
 ### Phase 5: Optimization & Refactoring 📝
 

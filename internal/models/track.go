@@ -10,6 +10,9 @@ type Track struct {
 	Title        string    `json:"title"`
 	Artist       string    `json:"artist"`
 	DriveFileID  string    `json:"drive_file_id"`
+	AlbumArtURL  string    `json:"album_art_url"`
+	IsFavorite   bool      `gorm:"default:false" json:"is_favorite"`
+	Quality      string    `gorm:"default:'high'" json:"quality"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

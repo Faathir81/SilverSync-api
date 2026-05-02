@@ -30,7 +30,7 @@ func ConnectDatabase() {
 	}
 
 	// Auto Migration
-	err = database.AutoMigrate(&models.Track{}, &models.SyncLog{})
+	err = database.AutoMigrate(&models.Track{}, &models.SyncLog{}, &models.Playlist{}, &models.WatchedPlaylist{})
 	if err != nil {
 		log.Fatal("Database migration failed:", err)
 	}

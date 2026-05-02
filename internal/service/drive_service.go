@@ -12,6 +12,8 @@ import (
 
 type DriveService interface {
 	UploadFile(ctx context.Context, filePath string, originalFileName string) (string, error)
+	GetStorageQuota(ctx context.Context) (*drive.AboutStorageQuota, error)
+	DeleteFile(ctx context.Context, fileID string) error
 }
 
 type driveService struct {
@@ -61,4 +63,17 @@ func (s *driveService) UploadFile(ctx context.Context, filePath string, original
 
 	log.Printf("[Drive] Successfully uploaded %s (File ID: %s)\n", originalFileName, res.Id)
 	return res.Id, nil
+}
+
+func (s *driveService) GetStorageQuota(ctx context.Context) (*drive.AboutStorageQuota, error) {
+	about, err := s.client.About.Get().Fields("storageQuota").Do()
+	if err != nil {
+		return nil, err
+	}
+	return about.StorageQuota, nil
+}
+
+func (s *driveService) DeleteFile(ctx context.Context, fileID string) error {
+	log.Printf("[Drive] Deleting file from Drive: %s\n", fileID)
+	return s.client.Files.Delete(fileID).Context(ctx).Do()
 }
