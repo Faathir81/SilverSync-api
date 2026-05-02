@@ -101,7 +101,7 @@ Untuk menjaga keteraturan proses development dan menghindari konflik antar phase
 To run this project locally, you need to install:
 
 1. **Golang** (v1.25.0)
-2. **Python** (v3.10.6) - *Required by yt-dlp*
+2. **Python** (v3.10.6) - _Required by yt-dlp_
 3. **FFmpeg** (v4.4 or newer)
 4. **yt-dlp** (latest version)
 5. **PostgreSQL** (v14.5)
