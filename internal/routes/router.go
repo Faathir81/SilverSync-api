@@ -36,6 +36,8 @@ func SetupRouter() *gin.Engine {
 	workerPool.Start(context.Background())
 
 	// Initialize Handlers
+	authHandler := handler.NewAuthHandler(spotifyService)
+	googleAuthHandler := handler.NewGoogleAuthHandler(driveService)
 	syncHandler := handler.NewSyncHandler(spotifyService, downloaderService, driveService, trackRepo, syncLogRepo, watchRepo, workerPool)
 	trackHandler := handler.NewTrackHandler(trackRepo, driveService)
 	playlistHandler := handler.NewPlaylistHandler(playlistRepo)
@@ -47,6 +49,22 @@ func SetupRouter() *gin.Engine {
 			"status":  "SilverSync API is running",
 		})
 	})
+
+	// Auth Group (Spotify OAuth2)
+	auth := r.Group("/auth")
+	{
+		auth.GET("/login", authHandler.Login)
+		auth.GET("/callback", authHandler.Callback)
+		auth.GET("/status", authHandler.AuthStatus)
+	}
+
+	// Google Drive OAuth2
+	googleAuth := r.Group("/auth/google")
+	{
+		googleAuth.GET("/login", googleAuthHandler.Login)
+		googleAuth.GET("/callback", googleAuthHandler.Callback)
+		googleAuth.GET("/status", googleAuthHandler.AuthStatus)
+	}
 
 	// API v1 Group
 	v1 := r.Group("/api/v1")

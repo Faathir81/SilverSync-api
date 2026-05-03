@@ -29,5 +29,12 @@ Thumbs.db
 *.mp3
 downloads/
 temp/
+
+# Service account & OAuth credentials (SENSITIVE - never commit!)
 service-account.json
 nodal-ivy-428515-d5-04a5648df757.json
+*.json.credentials
+
+# OAuth tokens (SENSITIVE - never commit!)
+.spotify_token
+.google_token
