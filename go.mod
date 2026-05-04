@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/bogem/id3v2 v1.2.0
+	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/joho/godotenv v1.5.1
 	github.com/sirupsen/logrus v1.9.4

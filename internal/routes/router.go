@@ -8,12 +8,21 @@ import (
 	"silversync-api/internal/repository"
 	"silversync-api/internal/service"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
+	// CORS — allow Flutter Web (any localhost port) to call this API
+	r.Use(cors.New(cors.Config{
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		AllowAllOrigins:  true, // Dev mode — lock this down in production
+	}))
 	// Initialize Repositories
 	trackRepo := repository.NewTrackRepository(config.DB)
 	syncLogRepo := repository.NewSyncLogRepository(config.DB)
