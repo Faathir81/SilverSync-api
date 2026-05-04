@@ -17,11 +17,10 @@ func SetupRouter() *gin.Engine {
 
 	// CORS — allow Flutter Web (any localhost port) to call this API
 	r.Use(cors.New(cors.Config{
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		AllowAllOrigins:  true, // Dev mode — lock this down in production
+		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:    []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:   []string{"Content-Length"},
+		AllowAllOrigins: true, // Dev mode — lock this down in production
 	}))
 	// Initialize Repositories
 	trackRepo := repository.NewTrackRepository(config.DB)
@@ -87,6 +86,7 @@ func SetupRouter() *gin.Engine {
 
 		// Track Endpoints
 		v1.GET("/tracks", trackHandler.GetTracks)
+		v1.GET("/tracks/:id/stream", trackHandler.StreamTrack)
 		v1.PATCH("/tracks/:id", trackHandler.UpdateTrack)
 		v1.DELETE("/tracks/:id", trackHandler.DeleteTrack)
 		v1.PATCH("/tracks/:id/favorite", trackHandler.ToggleFavorite)
