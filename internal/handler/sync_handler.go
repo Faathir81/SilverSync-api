@@ -193,6 +193,15 @@ func (h *SyncHandler) Status(c *gin.Context) {
 	c.JSON(http.StatusOK, syncLog)
 }
 
+func (h *SyncHandler) ListActive(c *gin.Context) {
+	logs, err := h.syncLogRepo.FindActive()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch active sync tasks"})
+		return
+	}
+	c.JSON(http.StatusOK, logs)
+}
+
 func (h *SyncHandler) GetDriveQuota(c *gin.Context) {
 	quota, err := h.driveService.GetStorageQuota(c.Request.Context())
 	if err != nil {

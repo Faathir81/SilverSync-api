@@ -60,3 +60,12 @@ func (h *GoogleAuthHandler) AuthStatus(c *gin.Context) {
 		"google_drive_authenticated": h.driveService.IsAuthenticated(),
 	})
 }
+ 
+// Logout clears the Google token.
+func (h *GoogleAuthHandler) Logout(c *gin.Context) {
+	h.driveService.ClearToken()
+	config.Logger.Info("Google session revoked manually.")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Google session revoked successfully",
+	})
+}

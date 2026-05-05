@@ -36,13 +36,14 @@ type FileMeta struct {
 type DriveService interface {
 	UploadFile(ctx context.Context, filePath string, originalFileName string) (string, error)
 	GetStorageQuota(ctx context.Context) (*QuotaInfo, error)
-	// GetFileMeta fetches name, mimeType, size from Drive
 	GetFileMeta(ctx context.Context, fileID string) (*FileMeta, error)
-	// GetFileStream proxies the Drive file stream; rangeHeader forwards the HTTP Range header for seek support
-	GetFileStream(ctx context.Context, fileID string, rangeHeader string) (io.ReadCloser, string, int64, int, error)
+	// GetFileStream proxies the Drive file stream. 
+	// Returns: body, mimeType, contentLength, statusCode, contentRange, error
+	GetFileStream(ctx context.Context, fileID string, rangeHeader string) (io.ReadCloser, string, int64, int, string, error)
 	DeleteFile(ctx context.Context, fileID string) error
 	IsAuthenticated() bool
 	SetToken(token *oauth2.Token)
+	ClearToken()
 	GetOAuthConfig() *oauth2.Config
 }
 
@@ -77,7 +78,6 @@ func NewDriveService() (DriveService, error) {
 		folderID: folderID,
 	}
 
-	// Try to load saved token from disk
 	if token, err := loadGoogleToken(); err == nil {
 		svc.token = token
 		if err := svc.initClient(); err != nil {
@@ -127,13 +127,22 @@ func (s *driveService) SetToken(token *oauth2.Token) {
 	}
 }
 
+func (s *driveService) ClearToken() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.client = nil
+	s.token = nil
+	_ = os.Remove(googleTokenFile)
+	config.Logger.Info("[Drive] ⚠️ Session cleared and token file deleted.")
+}
+
 func (s *driveService) UploadFile(ctx context.Context, filePath string, originalFileName string) (string, error) {
 	s.mu.Lock()
 	client := s.client
 	s.mu.Unlock()
 
 	if client == nil {
-		return "", fmt.Errorf("google drive not authenticated. please visit /auth/google/login")
+		return "", fmt.Errorf("google drive not authenticated")
 	}
 
 	file, err := os.Open(filePath)
@@ -158,7 +167,6 @@ func (s *driveService) UploadFile(ctx context.Context, filePath string, original
 	return res.Id, nil
 }
 
-// GetStorageQuota returns quota info including the real SilverSync folder usage
 func (s *driveService) GetStorageQuota(ctx context.Context) (*QuotaInfo, error) {
 	s.mu.Lock()
 	client := s.client
@@ -169,14 +177,12 @@ func (s *driveService) GetStorageQuota(ctx context.Context) (*QuotaInfo, error) 
 		return nil, fmt.Errorf("google drive not authenticated")
 	}
 
-	// 1. Get overall account quota (limit, usage, usageInDrive)
 	about, err := client.About.Get().Fields("storageQuota").Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch account quota: %v", err)
 	}
 	q := about.StorageQuota
 
-	// 2. Calculate actual SilverSync folder size by summing all files inside it
 	var silversyncBytes int64
 	pageToken := ""
 	for {
@@ -190,7 +196,6 @@ func (s *driveService) GetStorageQuota(ctx context.Context) (*QuotaInfo, error) 
 		}
 		fileList, err := call.Do()
 		if err != nil {
-			// If we can't list files, fall back to 0
 			config.Logger.Warnf("[Drive] Could not list SilverSync folder files: %v", err)
 			break
 		}
@@ -224,7 +229,6 @@ func (s *driveService) DeleteFile(ctx context.Context, fileID string) error {
 	return client.Files.Delete(fileID).Context(ctx).Do()
 }
 
-// GetFileMeta returns metadata (name, mimeType, size) for a Drive file
 func (s *driveService) GetFileMeta(ctx context.Context, fileID string) (*FileMeta, error) {
 	s.mu.Lock()
 	client := s.client
@@ -251,24 +255,20 @@ func (s *driveService) GetFileMeta(ctx context.Context, fileID string) (*FileMet
 	}, nil
 }
 
-// GetFileStream proxies the Drive file stream with optional Range support.
-// rangeHeader: value of the client's Range header (e.g. "bytes=0-"), empty for full download.
-// Returns: body, mimeType, contentLength (-1 if unknown), http status code, error
-func (s *driveService) GetFileStream(ctx context.Context, fileID string, rangeHeader string) (io.ReadCloser, string, int64, int, error) {
+func (s *driveService) GetFileStream(ctx context.Context, fileID string, rangeHeader string) (io.ReadCloser, string, int64, int, string, error) {
 	s.mu.Lock()
 	client := s.client
 	s.mu.Unlock()
 
 	if client == nil {
-		return nil, "", 0, 0, fmt.Errorf("google drive not authenticated")
+		return nil, "", 0, 0, "", fmt.Errorf("google drive not authenticated")
 	}
 
 	meta, err := s.GetFileMeta(ctx, fileID)
 	if err != nil {
-		return nil, "", 0, 0, err
+		return nil, "", 0, 0, "", err
 	}
 
-	// Build download call; inject Range header when present so Drive returns 206 Partial Content
 	call := client.Files.Get(fileID)
 	if rangeHeader != "" {
 		call.Header().Set("Range", rangeHeader)
@@ -276,17 +276,19 @@ func (s *driveService) GetFileStream(ctx context.Context, fileID string, rangeHe
 
 	resp, err := call.Download()
 	if err != nil {
-		return nil, "", 0, 0, fmt.Errorf("failed to download: %v", err)
+		return nil, "", 0, 0, "", fmt.Errorf("failed to download: %v", err)
 	}
 
 	statusCode := resp.StatusCode
-	contentLength := resp.ContentLength // -1 if unknown
+	contentLength := resp.ContentLength
+	contentRange := resp.Header.Get("Content-Range")
+	
 	if contentLength <= 0 && rangeHeader == "" {
 		contentLength = meta.Size
 	}
 
 	config.Logger.Infof("[Drive] Streaming %s (%s) status=%d range=%q", meta.Name, meta.MimeType, statusCode, rangeHeader)
-	return resp.Body, meta.MimeType, contentLength, statusCode, nil
+	return resp.Body, meta.MimeType, contentLength, statusCode, contentRange, nil
 }
 
 func saveGoogleToken(token *oauth2.Token) error {

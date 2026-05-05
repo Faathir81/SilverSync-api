@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"silversync-api/internal/config"
@@ -153,10 +152,11 @@ func (h *TrackHandler) StreamTrack(c *gin.Context) {
 		return
 	}
 
-	// Always fetch the full file from Drive (don't forward Range to avoid Drive SDK issues)
-	// We handle Range negotiation ourselves at the proxy level.
-	stream, mimeType, contentLength, _, err := h.driveService.GetFileStream(
-		c.Request.Context(), track.DriveFileID, "",
+	rangeHeader := c.GetHeader("Range")
+
+	// Forward the Range header to DriveService to get only the requested part of the file
+	stream, mimeType, contentLength, statusCode, contentRange, err := h.driveService.GetFileStream(
+		c.Request.Context(), track.DriveFileID, rangeHeader,
 	)
 	if err != nil {
 		config.Logger.Errorf("[Stream] Failed for track %d: %v", id, err)
@@ -165,30 +165,26 @@ func (h *TrackHandler) StreamTrack(c *gin.Context) {
 	}
 	defer stream.Close()
 
-	rangeHeader := c.GetHeader("Range")
-
 	c.Header("Content-Type", mimeType)
 	c.Header("Accept-Ranges", "bytes")
 	c.Header("Cache-Control", "no-cache")
 
-	if rangeHeader != "" && contentLength > 0 {
-		// Chrome's audio element sends Range: bytes=0- for ALL audio requests.
-		// We must respond with 206 Partial Content + Content-Range or Chrome will abort.
-		// Since we always stream the full file, Content-Range covers the entire file.
+	if statusCode == http.StatusPartialContent {
 		c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
-		c.Header("Content-Range", fmt.Sprintf("bytes 0-%d/%d", contentLength-1, contentLength))
-		c.Status(http.StatusPartialContent) // 206
-		config.Logger.Infof("[Stream] Serving track %d as 206 (range=%s, size=%d)", id, rangeHeader, contentLength)
+		if contentRange != "" {
+			c.Header("Content-Range", contentRange)
+		}
+		c.Status(http.StatusPartialContent)
 	} else {
 		if contentLength > 0 {
 			c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
 		}
-		c.Status(http.StatusOK) // 200
-		config.Logger.Infof("[Stream] Serving track %d as 200 (size=%d)", id, contentLength)
+		c.Status(http.StatusOK)
 	}
 
+	config.Logger.Infof("[Stream] Serving track %d status=%d (range=%s, size=%d)", id, statusCode, rangeHeader, contentLength)
+
 	if _, err := io.Copy(c.Writer, stream); err != nil {
-		// wsasend error is expected when browser stops buffering — not a real error
 		config.Logger.Debugf("[Stream] Stream ended for track %d: %v", id, err)
 	}
 }

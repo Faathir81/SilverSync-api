@@ -28,6 +28,9 @@ func SetupRouter() *gin.Engine {
 	playlistRepo := repository.NewPlaylistRepository(config.DB)
 	watchRepo := repository.NewWatchedPlaylistRepository(config.DB)
 
+	// Clean up any stale sync jobs from previous runs
+	_ = syncLogRepo.CleanupStaleJobs()
+
 	// Initialize Services
 	spotifyService, err := service.NewSpotifyService()
 	if err != nil {
@@ -64,6 +67,7 @@ func SetupRouter() *gin.Engine {
 		auth.GET("/login", authHandler.Login)
 		auth.GET("/callback", authHandler.Callback)
 		auth.GET("/status", authHandler.AuthStatus)
+		auth.GET("/logout", authHandler.Logout)
 	}
 
 	// Google Drive OAuth2
@@ -72,6 +76,7 @@ func SetupRouter() *gin.Engine {
 		googleAuth.GET("/login", googleAuthHandler.Login)
 		googleAuth.GET("/callback", googleAuthHandler.Callback)
 		googleAuth.GET("/status", googleAuthHandler.AuthStatus)
+		googleAuth.GET("/logout", googleAuthHandler.Logout)
 	}
 
 	// API v1 Group
@@ -79,6 +84,7 @@ func SetupRouter() *gin.Engine {
 	{
 		// Sync & Smart Watcher Endpoints
 		v1.POST("/sync", syncHandler.Sync)
+		v1.GET("/sync/active", syncHandler.ListActive)
 		v1.GET("/sync/status/:id", syncHandler.Status)
 		v1.GET("/sync/quota", syncHandler.GetDriveQuota)
 		v1.POST("/sync/watch", syncHandler.AddWatch)

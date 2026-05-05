@@ -75,3 +75,13 @@ func (h *AuthHandler) AuthStatus(c *gin.Context) {
 		})
 	}
 }
+ 
+// Logout clears the Spotify token.
+// GET /auth/logout
+func (h *AuthHandler) Logout(c *gin.Context) {
+	h.SpotifyService.ClearToken()
+	config.Logger.Info("Spotify session revoked manually.")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Spotify session revoked successfully",
+	})
+}

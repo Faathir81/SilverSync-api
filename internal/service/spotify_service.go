@@ -85,7 +85,6 @@ func (s *SpotifyService) IsAuthenticated() bool {
 	defer s.mu.Unlock()
 	return s.Client != nil
 }
-
 // SetToken sets the OAuth token and creates the Spotify client. Called after successful OAuth callback.
 func (s *SpotifyService) SetToken(token *oauth2.Token) {
 	s.mu.Lock()
@@ -97,6 +96,16 @@ func (s *SpotifyService) SetToken(token *oauth2.Token) {
 		fmt.Printf("[Spotify] Warning: could not save token: %v\n", err)
 	}
 	fmt.Println("[Spotify] ✅ Token saved and Spotify client initialized.")
+}
+
+// ClearToken removes the saved token and resets the client.
+func (s *SpotifyService) ClearToken() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Client = nil
+	s.token = nil
+	_ = os.Remove(tokenFile)
+	fmt.Println("[Spotify] ⚠️  Session cleared and token file deleted.")
 }
 
 // ExtractSpotifyID parses a Spotify URL and returns the ID and its type.
