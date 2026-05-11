@@ -13,7 +13,7 @@ func main() {
 	config.InitLogger()
 
 	// Load environment variables
-	err := godotenv.Load()
+	err := godotenv.Overload()
 	if err != nil {
 		config.Logger.Warn("Warning: .env file not found, using system environment variables")
 	}

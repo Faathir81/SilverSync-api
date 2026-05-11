@@ -35,5 +35,5 @@ func ConnectDatabase() {
 	}
 
 	DB = database
-	Logger.Info("Database connection established and migrated successfully")
+	Logger.Infof("Database connection established to `%s` successfully", dbname)
 }
